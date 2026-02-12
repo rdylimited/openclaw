@@ -21,12 +21,20 @@ export type ModelCompatConfig = {
   supportsTools?: boolean;
   supportsStrictMode?: boolean;
   maxTokensField?: "max_completion_tokens" | "max_tokens";
-  thinkingFormat?: "openai" | "zai" | "qwen";
+thinkingFormat?: "openai" | "zai" | "qwen";
   requiresToolResultName?: boolean;
   requiresAssistantAfterToolResult?: boolean;
   requiresThinkingAsText?: boolean;
   requiresMistralToolIds?: boolean;
   requiresOpenAiAnthropicToolPayload?: boolean;
+  /**
+   * For some OpenAI-compatible servers (e.g. local vLLM), tool calling is only
+   * supported via `POST /v1/chat/completions` with `tools` + `tool_choice`.
+   *
+   * When enabled for an `openai-completions` model, OpenClaw routes the agent's
+   * toolset through the SDK tool path so tools are included in the request.
+   */
+  openaiCompletionsTools?: boolean;
 };
 
 export type ModelProviderAuthMode = "api-key" | "aws-sdk" | "oauth" | "token";
