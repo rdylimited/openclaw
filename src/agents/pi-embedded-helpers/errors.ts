@@ -664,7 +664,7 @@ export function formatAssistantErrorText(
 
   // Catch role ordering errors - including JSON-wrapped and "400" prefix variants
   if (
-    /incorrect role information|roles must alternate|400.*role|"message".*role.*information/i.test(
+    /incorrect role information|roles must alternate|roles? must (alternate|start with)|"message".*role.*information/i.test(
       raw,
     )
   ) {
@@ -771,6 +771,88 @@ export function isRateLimitAssistantError(msg: AssistantMessage | undefined): bo
   }
   return isRateLimitErrorMessage(msg.errorMessage ?? "");
 }
+
+type ErrorPattern = RegExp | string;
+
+const ERROR_PATTERNS = {
+  rateLimit: [
+    /rate[_ ]limit|too many requests|429/,
+    "model_cooldown",
+    "cooling down",
+    "exceeded your current quota",
+    "resource has been exhausted",
+    "quota exceeded",
+    "resource_exhausted",
+    "usage limit",
+    "tpm",
+    "tokens per minute",
+  ],
+  overloaded: [
+    /overloaded_error|"type"\s*:\s*"overloaded_error"/i,
+    "overloaded",
+    "service unavailable",
+    "high demand",
+  ],
+  timeout: [
+    "timeout",
+    "timed out",
+    "deadline exceeded",
+    "context deadline exceeded",
+    "fetch failed",
+    "ECONNREFUSED",
+    "connection refused",
+    "connection error",
+    "ENOTFOUND",
+    /without sending (?:any )?chunks?/i,
+    /\bstop reason:\s*abort\b/i,
+    /\breason:\s*abort\b/i,
+    /\bunhandled stop reason:\s*abort\b/i,
+  ],
+  billing: [
+    /["']?(?:status|code)["']?\s*[:=]\s*402\b|\bhttp\s*402\b|\berror(?:\s+code)?\s*[:=]?\s*402\b|\b(?:got|returned|received)\s+(?:a\s+)?402\b|^\s*402\s+payment/i,
+    "payment required",
+    "insufficient credits",
+    "credit balance",
+    "plans & billing",
+    "insufficient balance",
+  ],
+  authPermanent: [
+    /api[_ ]?key[_ ]?(?:revoked|invalid|deactivated|deleted)/i,
+    "invalid_api_key",
+    "key has been disabled",
+    "key has been revoked",
+    "account has been deactivated",
+    /could not (?:authenticate|validate).*(?:api[_ ]?key|credentials)/i,
+  ],
+  auth: [
+    /invalid[_ ]?api[_ ]?key/,
+    "incorrect api key",
+    "invalid token",
+    "authentication",
+    "re-authenticate",
+    "oauth token refresh failed",
+    "unauthorized",
+    "forbidden",
+    "access denied",
+    "insufficient permissions",
+    "insufficient permission",
+    /missing scopes?:/i,
+    "expired",
+    "token has expired",
+    /\b401\b/,
+    /\b403\b/,
+    "no credentials found",
+    "no api key found",
+  ],
+  format: [
+    "string should match pattern",
+    "tool_use.id",
+    "tool_use_id",
+    "messages.1.content.1.tool_use.id",
+    "invalid request format",
+    /tool call id was.*must be/i,
+  ],
+} as const;
 
 const TOOL_CALL_INPUT_MISSING_RE =
   /tool_(?:use|call)\.(?:input|arguments).*?(?:field required|required)/i;

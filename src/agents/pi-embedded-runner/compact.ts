@@ -685,8 +685,19 @@ export async function compactEmbeddedPiSessionDirect(
         // "Original" compaction metrics should describe the validated transcript that enters
         // limiting/compaction, not the raw on-disk session snapshot.
         const originalMessages = session.messages.slice();
+        // Strip leading assistant messages (see attempt.ts for rationale)
+        const withoutLeadingAssistant = (() => {
+          const idx = session.messages.findIndex(
+            (m: unknown) =>
+              m != null &&
+              typeof m === "object" &&
+              "role" in m &&
+              (m as { role: string }).role === "user",
+          );
+          return idx > 0 ? session.messages.slice(idx) : session.messages;
+        })();
         const truncated = limitHistoryTurns(
-          session.messages,
+          withoutLeadingAssistant,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
         );
         // Re-run tool_use/tool_result pairing repair after truncation, since

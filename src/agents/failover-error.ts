@@ -172,6 +172,7 @@ export function resolveFailoverReasonFromError(err: unknown): FailoverReason | n
       "EHOSTUNREACH",
       "ENETRESET",
       "EAI_AGAIN",
+      "ENOTFOUND",
     ].includes(code)
   ) {
     return "timeout";

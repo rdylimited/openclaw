@@ -1404,8 +1404,21 @@ export async function runEmbeddedAttempt(
         const validated = transcriptPolicy.validateAnthropicTurns
           ? validateAnthropicTurns(validatedGemini)
           : validatedGemini;
+        // Strip leading assistant messages that precede the first user message.
+        // Many OpenAI-compatible APIs (e.g. Moonshot/Kimi) enforce strict
+        // user-first alternation and reject conversations starting with assistant.
+        const withoutLeadingAssistant = (() => {
+          const idx = validated.findIndex(
+            (m: unknown) =>
+              m != null &&
+              typeof m === "object" &&
+              "role" in m &&
+              (m as { role: string }).role === "user",
+          );
+          return idx > 0 ? validated.slice(idx) : validated;
+        })();
         const truncated = limitHistoryTurns(
-          validated,
+          withoutLeadingAssistant,
           getDmHistoryLimitFromSessionKey(params.sessionKey, params.config),
         );
         // Re-run tool_use/tool_result pairing repair after truncation, since
