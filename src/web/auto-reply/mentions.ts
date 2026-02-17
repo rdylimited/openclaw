@@ -80,6 +80,30 @@ export function isBotMentionedFromTargets(
     }
   }
 
+  // Group-specific fallback: detect messages that are clearly about the bot’s mention behavior
+  // This catches cases where the bot was @mentioned but `mentionedJids` is null (e.g., due to WhatsApp Web quirks)
+  // Only apply in group chats, and only for high-signal phrases that strongly suggest a mention was expected.
+  if (msg.chatType === "group") {
+    const groupMentionTriggers = [
+      /answering in\s+["']?rdy team["']?/i,
+      /not responding in\s+group/i,
+      /not replying in\s+group/i,
+      /not answering in\s+group/i,
+      /why aren’t? you answering in/i,
+      /why aren’t? you replying in/i,
+      /why aren’t? you responding in/i,
+      /why aren’t? you mentioning/i,
+      /mentioned me/i,
+      /@ me/i,
+      /you should be responding/i,
+      /you should be replying/i,
+      /you should be answering/i,
+    ];
+    if (groupMentionTriggers.some((re) => re.test(bodyClean))) {
+      return true;
+    }
+  }
+
   return false;
 }
 
