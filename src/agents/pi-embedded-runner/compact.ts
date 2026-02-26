@@ -631,7 +631,6 @@ export async function compactEmbeddedPiSessionDirect(
       const { builtInTools, customTools } = splitSdkTools({
         tools,
         sandboxEnabled: !!sandbox?.enabled,
-        useNativeTools: !!(model?.compat as Record<string, unknown>)?.["openaiCompletionsTools"],
       });
 
       const { session } = await createAgentSession({
