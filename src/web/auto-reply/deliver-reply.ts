@@ -14,6 +14,17 @@ import { elide } from "./util.js";
 
 const REASONING_PREFIX = "reasoning:";
 
+/**
+ * Strip raw <tool_call>...</tool_call> XML blocks from model output.
+ * vLLM/Qwen models emit tool invocations as XML in content text rather than
+ * structured tool_calls in the API response. Remove them before delivery.
+ */
+function stripToolCallXml(text: string): string {
+  const stripped = text.replace(/<tool_call>[\s\S]*?<\/tool_call>/g, "");
+  const cleaned = stripped.replace(/<\/?tool_call>/g, "");
+  return cleaned.replace(/\n{3,}/g, "\n\n").trim();
+}
+
 function shouldSuppressReasoningReply(payload: ReplyPayload): boolean {
   if (payload.isReasoning === true) {
     return true;
@@ -49,7 +60,7 @@ export async function deliverWebReply(params: {
   const tableMode = params.tableMode ?? "code";
   const chunkMode = params.chunkMode ?? "length";
   const convertedText = markdownToWhatsApp(
-    convertMarkdownTables(replyResult.text || "", tableMode),
+    convertMarkdownTables(stripToolCallXml(replyResult.text || ""), tableMode),
   );
   const textChunks = chunkMarkdownTextWithMode(convertedText, textLimit, chunkMode);
   const mediaList = replyResult.mediaUrls?.length
