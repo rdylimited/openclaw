@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly profitability digest on Monday 9am HKT
+
+[Timer]
+OnCalendar=Mon *-*-* 01:00:00 UTC
+# 9am HKT = 01:00 UTC Monday
+Persistent=true
+
+[Install]
+WantedBy=timers.target

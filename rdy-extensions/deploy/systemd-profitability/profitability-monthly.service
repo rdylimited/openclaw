@@ -1,0 +1,6 @@
+[Unit]
+Description=Trigger monthly profitability deep review
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/profitability-trigger.sh monthly_review

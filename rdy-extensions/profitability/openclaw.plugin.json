@@ -1,0 +1,15 @@
+{
+  "id": "rdy-profitability",
+  "name": "RdyCore Profitability Optimizer",
+  "version": "1.0.0",
+  "description": "Per-vertical profitability analysis, optimization recommendations, and closed-loop improvement tracking. Provides on-demand analytics tools and scheduled report generation.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "pgConnectionString": {
+        "type": "string",
+        "default": "postgresql://postgres@localhost:5433/rdycore"
+      }
+    }
+  }
+}

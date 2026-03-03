@@ -1,0 +1,6 @@
+[Unit]
+Description=Trigger daily profitability brief
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/profitability-trigger.sh daily_brief

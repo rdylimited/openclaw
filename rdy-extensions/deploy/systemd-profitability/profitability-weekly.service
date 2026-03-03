@@ -1,0 +1,6 @@
+[Unit]
+Description=Trigger weekly profitability digest
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/profitability-trigger.sh weekly_digest

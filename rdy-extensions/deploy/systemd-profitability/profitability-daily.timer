@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily profitability brief at 8am HKT
+
+[Timer]
+OnCalendar=*-*-* 00:00:00 UTC
+# 8am HKT = 00:00 UTC (HKT is UTC+8)
+Persistent=true
+
+[Install]
+WantedBy=timers.target

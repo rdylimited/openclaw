@@ -1,0 +1,15 @@
+{
+  "id": "rdy-business-tools",
+  "name": "RdyCore Business Operations",
+  "version": "1.0.0",
+  "description": "Business operations tools for RdyCore AI assistant: bookings, credits, availability, daily summaries.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "pgConnectionString": {
+        "type": "string",
+        "default": "postgresql://postgres@localhost:5432/rdycore"
+      }
+    }
+  }
+}

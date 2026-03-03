@@ -1,0 +1,6 @@
+[Unit]
+Description=Trigger annual profitability review
+
+[Service]
+Type=oneshot
+ExecStart=%h/scripts/profitability-trigger.sh annual_review
