@@ -1,0 +1,19 @@
+{
+  "id": "rdy-biz",
+  "name": "RDY Business Suite",
+  "description": "Business operations tools: CRM, documents, finance, procurement, operations, HR, tax, workflows",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "supabaseUrl": { "type": "string" },
+      "supabaseServiceKey": { "type": "string" },
+      "tenantId": { "type": "string" },
+      "defaultCurrency": { "type": "string", "default": "HKD" },
+      "fiscalYearStart": { "type": "string", "default": "04-01" },
+      "timezone": { "type": "string", "default": "Asia/Hong_Kong" },
+      "vllmBaseUrl": { "type": "string", "default": "http://100.115.36.67:8000" },
+      "vllmModel": { "type": "string", "default": "rdycore-pro" }
+    },
+    "required": ["supabaseUrl", "supabaseServiceKey", "tenantId"]
+  }
+}
