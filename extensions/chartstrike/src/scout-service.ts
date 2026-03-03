@@ -50,11 +50,16 @@ type PitReport = {
 };
 
 async function sendWhatsApp(to: string, text: string): Promise<void> {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  const execFileAsync = promisify(execFile);
   try {
-    const { sendMessageWhatsApp } = await import("../../../src/web/outbound.js");
-    await sendMessageWhatsApp(to, text, { verbose: false });
+    await execFileAsync(
+      "openclaw",
+      ["message", "send", "--channel", "whatsapp", "--target", `+${to}`, "--message", text],
+      { timeout: 30_000 },
+    );
   } catch (err) {
-    // WhatsApp session may not be active — log but don't crash
     console.error("[chartstrike-scout] WhatsApp send failed:", err);
   }
 }
