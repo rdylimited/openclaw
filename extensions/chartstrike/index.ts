@@ -17,15 +17,36 @@ let boardroomUrl = BOARDROOM_URL_DEFAULT;
 function formatDebateForWhatsApp(data: Record<string, unknown>): string {
   const ticker = data.ticker ?? "";
   const decision = data.decision ?? data.final_decision ?? "unknown";
-  const confidence = data.confidence ?? data.final_confidence ?? "?";
+  const rawConf = Number(data.confidence ?? data.final_confidence ?? 0);
+  const confidence = rawConf <= 1 ? Math.round(rawConf * 100) : Math.round(rawConf);
   const rationale = data.rationale ?? data.summary ?? "";
   const rounds = data.rounds_completed ?? data.debate_rounds ?? "?";
-  return (
-    `*Boardroom Debate: ${ticker}*\n` +
-    `Decision: *${decision}* (${confidence}% confidence)\n` +
-    `Rounds: ${rounds}\n` +
-    `${rationale}`
-  );
+  const duration = data.duration_ms ? `${Math.round(Number(data.duration_ms) / 1000)}s` : "?";
+  const bullConf =
+    data.bull_confidence != null ? Math.round(Number(data.bull_confidence) * 100) : null;
+  const bearConf =
+    data.bear_confidence != null ? Math.round(Number(data.bear_confidence) * 100) : null;
+
+  let msg =
+    `*Boardroom Debate: ${ticker}*\n` + `Decision: *${decision}* (${confidence}% confidence)\n`;
+
+  if (bullConf != null && bearConf != null) {
+    msg += `Bull: ${bullConf}% | Bear: ${bearConf}%\n`;
+  }
+
+  msg += `Rounds: ${rounds} | Duration: ${duration}\n`;
+
+  if (data.bull_thesis) {
+    const thesis = String(data.bull_thesis).slice(0, 200);
+    msg += `\n*Bull:* ${thesis}\n`;
+  }
+  if (data.bear_thesis) {
+    const thesis = String(data.bear_thesis).slice(0, 200);
+    msg += `*Bear:* ${thesis}\n`;
+  }
+
+  msg += `\n${rationale}`;
+  return msg;
 }
 
 const plugin = {
