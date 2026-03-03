@@ -1,0 +1,19 @@
+{
+  "id": "chartstrike",
+  "name": "ChartStrike Market Intelligence",
+  "version": "2026.3.3",
+  "description": "Access ChartStrike Pit API for whale activity, options flow, dark pool data. Includes scout monitoring with WhatsApp alerts and Boardroom debate integration.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "pitUrl": { "type": "string", "default": "http://100.114.112.7:8001" },
+      "boardroomUrl": { "type": "string", "default": "http://100.114.112.7:8002" },
+      "scoutUrl": { "type": "string", "default": "http://100.115.36.67:8082" },
+      "scoutModel": { "type": "string", "default": "qwen3-4b-scout" },
+      "alertThreshold": { "type": "number", "default": 0.7 },
+      "autoDebateThreshold": { "type": "number", "default": 0.85 },
+      "pollIntervalMs": { "type": "number", "default": 60000 },
+      "whatsappTarget": { "type": "string", "default": "85293830979" }
+    }
+  }
+}

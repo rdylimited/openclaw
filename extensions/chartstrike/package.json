@@ -1,0 +1,12 @@
+{
+  "name": "@openclaw/chartstrike",
+  "version": "2026.3.3",
+  "private": true,
+  "description": "ChartStrike market intelligence with scout monitoring and Boardroom debates",
+  "type": "module",
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
