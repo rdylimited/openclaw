@@ -30,17 +30,21 @@ export function configureScoutService(partial: Partial<ScoutConfig>): void {
 // Polling lock to prevent concurrent poll cycles
 let polling = false;
 
-// Dedup: signal ID → timestamp when first seen. Evict after 1 hour.
+// Dedup: signal ID -> timestamp. Evict after 1 hour.
 const seenSignals = new Map<string, number>();
-const SEEN_TTL_MS = 60 * 60 * 1000;
-
+// Alerted tickers — only alert each ticker once per TTL (consolidate multiple signals)
+const alertedTickers = new Map<string, number>();
 // Debated tickers — only auto-debate each ticker once per TTL
 const debatedTickers = new Map<string, number>();
+const SEEN_TTL_MS = 60 * 60 * 1000;
 
-function evictStaleSignals(): void {
+function evictStale(): void {
   const cutoff = Date.now() - SEEN_TTL_MS;
   for (const [id, ts] of seenSignals) {
     if (ts < cutoff) seenSignals.delete(id);
+  }
+  for (const [t, ts] of alertedTickers) {
+    if (ts < cutoff) alertedTickers.delete(t);
   }
   for (const [t, ts] of debatedTickers) {
     if (ts < cutoff) debatedTickers.delete(t);
@@ -58,18 +62,26 @@ type PitReport = {
   created_at?: string;
 };
 
+/** Strip <think>...</think> tags from scout output */
+function stripThinkTags(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+}
+
 async function sendWhatsApp(to: string, text: string): Promise<void> {
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   const execFileAsync = promisify(execFile);
   try {
+    // execFile does NOT use a shell, so special chars are safe
     await execFileAsync(
       "openclaw",
       ["message", "send", "--channel", "whatsapp", "--target", `+${to}`, "--message", text],
       { timeout: 30_000 },
     );
-  } catch (err) {
-    console.error("[chartstrike-scout] WhatsApp send failed:", err);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // Only log first line to avoid flooding
+    console.error(`[chartstrike-scout] WhatsApp send failed: ${msg.split("\n")[0]}`);
   }
 }
 
@@ -81,7 +93,7 @@ async function triggerDebate(ticker: string): Promise<string | null> {
       body: JSON.stringify({ ticker }),
     });
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, unknown>;
     return formatDebateResult(data);
   } catch {
     return null;
@@ -94,15 +106,14 @@ function formatDebateResult(data: Record<string, unknown>): string {
   const rationale = data.rationale ?? data.summary ?? "";
   const ticker = data.ticker ?? "";
   return (
-    `*Boardroom Debate: ${ticker}*\n` +
-    `Decision: *${decision}* (${confidence}% confidence)\n` +
+    `Boardroom Debate: ${ticker}\n` +
+    `Decision: ${decision} (${confidence}% confidence)\n` +
     `${rationale}`
   );
 }
 
 async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
   if (polling) {
-    logger.info("Scout poll skipped (previous cycle still running)");
     return;
   }
   polling = true;
@@ -114,7 +125,7 @@ async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promis
 }
 
 async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
-  evictStaleSignals();
+  evictStale();
 
   let reports: PitReport[];
   try {
@@ -125,29 +136,42 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
     return;
   }
 
-  const maxStrength =
-    reports.length > 0 ? Math.max(...reports.map((r) => Math.abs(r.signal_strength ?? 0))) : 0;
-  logger.info(
-    `Scout poll: ${reports.length} reports, max strength=${maxStrength.toFixed(2)}, threshold=${config.alertThreshold}`,
-  );
-
+  // Find the strongest signal per ticker (consolidate)
+  const bestByTicker = new Map<string, { report: PitReport; strength: number }>();
   for (const report of reports) {
     const signalId =
       report.id ?? `${report.ticker}-${report.signal_strength}-${report.signal_type}`;
     if (seenSignals.has(signalId)) continue;
+    seenSignals.set(signalId, Date.now());
 
     const strength = Math.abs(report.signal_strength ?? 0);
     if (strength < config.alertThreshold) continue;
 
-    seenSignals.set(signalId, Date.now());
     const ticker = report.ticker ?? "???";
+    const existing = bestByTicker.get(ticker);
+    if (!existing || strength > existing.strength) {
+      bestByTicker.set(ticker, { report, strength });
+    }
+  }
+
+  const above = bestByTicker.size;
+  if (above > 0) {
+    logger.info(`Scout poll: ${reports.length} reports, ${above} tickers above threshold`);
+  }
+
+  // Process one alert per ticker (the strongest signal)
+  for (const [ticker, { report, strength }] of bestByTicker) {
+    // Skip if we already alerted this ticker recently
+    if (alertedTickers.has(ticker)) continue;
+    alertedTickers.set(ticker, Date.now());
+
     const dir = (report.signal_strength ?? 0) >= 0 ? "bullish" : "bearish";
 
     // Run scout analysis
     let scoutTake = "";
     try {
       const verdict = await scoutAnalyze(ticker, JSON.stringify(report));
-      scoutTake = `Scout: ${verdict.summary}`;
+      scoutTake = `Scout: ${stripThinkTags(verdict.summary)}`;
     } catch {
       scoutTake = "Scout: analysis unavailable";
     }
@@ -159,14 +183,14 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
     const optType = rd.type ? String(rd.type).toUpperCase() : "";
     const expiry = rd.expiry ? String(rd.expiry) : "";
     const alertMsg =
-      `*${ticker} Alert* (${strength.toFixed(2)} ${dir}): ` +
+      `${ticker} Alert (${strength.toFixed(2)} ${dir}): ` +
       `${report.signal_type ?? "signal"}` +
       (optType ? ` ${optType}` : "") +
       (strike ? ` @ ${strike}` : "") +
       (expiry ? ` exp ${expiry}` : "") +
       (premium ? ` | Premium: ${premium}` : "") +
       `\n${scoutTake}` +
-      `\nReply */debate ${ticker}* for full analysis.`;
+      `\nReply /debate ${ticker} for full analysis.`;
 
     logger.info(`Alert: ${ticker} strength=${strength} ${dir}`);
     await sendWhatsApp(config.whatsappTarget, alertMsg);
@@ -174,7 +198,7 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
     // Auto-trigger debate for very strong signals (once per ticker per TTL)
     if (strength >= config.autoDebateThreshold && !debatedTickers.has(ticker)) {
       debatedTickers.set(ticker, Date.now());
-      logger.info(`Auto-debate triggered for ${ticker} (strength=${strength})`);
+      logger.info(`Auto-debate: ${ticker} (strength=${strength})`);
       const debateResult = await triggerDebate(ticker);
       if (debateResult) {
         await sendWhatsApp(config.whatsappTarget, debateResult);
@@ -194,10 +218,10 @@ export const scoutService: OpenClawPluginService = {
         `alert>=${config.alertThreshold}, auto-debate>=${config.autoDebateThreshold})`,
     );
 
-    // Initial poll after 10s delay (let WhatsApp session stabilize)
+    // Initial poll after 15s delay (let WhatsApp session stabilize)
     setTimeout(() => {
       pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
-    }, 10_000);
+    }, 15_000);
 
     pollTimer = setInterval(() => {
       pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
