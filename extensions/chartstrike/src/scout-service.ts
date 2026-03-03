@@ -27,14 +27,23 @@ export function configureScoutService(partial: Partial<ScoutConfig>): void {
   config = { ...config, ...partial };
 }
 
+// Polling lock to prevent concurrent poll cycles
+let polling = false;
+
 // Dedup: signal ID → timestamp when first seen. Evict after 1 hour.
 const seenSignals = new Map<string, number>();
 const SEEN_TTL_MS = 60 * 60 * 1000;
+
+// Debated tickers — only auto-debate each ticker once per TTL
+const debatedTickers = new Map<string, number>();
 
 function evictStaleSignals(): void {
   const cutoff = Date.now() - SEEN_TTL_MS;
   for (const [id, ts] of seenSignals) {
     if (ts < cutoff) seenSignals.delete(id);
+  }
+  for (const [t, ts] of debatedTickers) {
+    if (ts < cutoff) debatedTickers.delete(t);
   }
 }
 
@@ -92,6 +101,19 @@ function formatDebateResult(data: Record<string, unknown>): string {
 }
 
 async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
+  if (polling) {
+    logger.info("Scout poll skipped (previous cycle still running)");
+    return;
+  }
+  polling = true;
+  try {
+    await pollCycleInner(logger);
+  } finally {
+    polling = false;
+  }
+}
+
+async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
   evictStaleSignals();
 
   let reports: PitReport[];
@@ -149,8 +171,9 @@ async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promis
     logger.info(`Alert: ${ticker} strength=${strength} ${dir}`);
     await sendWhatsApp(config.whatsappTarget, alertMsg);
 
-    // Auto-trigger debate for very strong signals
-    if (strength >= config.autoDebateThreshold) {
+    // Auto-trigger debate for very strong signals (once per ticker per TTL)
+    if (strength >= config.autoDebateThreshold && !debatedTickers.has(ticker)) {
+      debatedTickers.set(ticker, Date.now());
       logger.info(`Auto-debate triggered for ${ticker} (strength=${strength})`);
       const debateResult = await triggerDebate(ticker);
       if (debateResult) {
