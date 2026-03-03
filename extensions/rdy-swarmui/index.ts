@@ -697,27 +697,76 @@ export default function (api: any) {
 
   api.registerCommand({
     name: "imagine",
-    description: "Generate an image with a prompt (shortcut for generate_image)",
+    description: "Generate an image with a prompt",
     async handler(ctx: any) {
       const prompt = ctx.args?.trim();
       if (!prompt) return { text: "Usage: /imagine <prompt>\nExample: /imagine a cyberpunk cityscape at sunset" };
-      return {
-        text: `Generating image: "${prompt}"...`,
-        toolCall: { name: "generate_image", params: { prompt } },
-      };
+      try {
+        const rawInput = {
+          prompt,
+          negativeprompt: "",
+          images: 1,
+          steps: 25,
+          cfgscale: 7,
+          width: 1024,
+          height: 1024,
+          seed: -1,
+        };
+        const result = await swarmPost("GenerateText2Image", { images: 1, rawInput }, 120_000);
+        if (result.error) return { text: `Generation failed: ${result.error}` };
+        const imagePaths: string[] = result.images ?? [];
+        if (imagePaths.length === 0) return { text: "No images generated. Check /gpustatus for backend health." };
+        const localPaths: string[] = [];
+        for (const imgPath of imagePaths) {
+          try {
+            localPaths.push(await downloadImage(imgPath));
+          } catch (err: any) {
+            log.error(`[rdy-swarmui] /imagine download failed: ${err.message}`);
+          }
+        }
+        return { text: `Generated image for "${prompt}"`, files: localPaths };
+      } catch (err: any) {
+        return { text: `Error: ${err.message}` };
+      }
     },
   });
 
   api.registerCommand({
     name: "video",
-    description: "Generate a video with a prompt (shortcut for generate_video)",
+    description: "Generate a video with a prompt",
     async handler(ctx: any) {
       const prompt = ctx.args?.trim();
       if (!prompt) return { text: "Usage: /video <prompt>\nExample: /video a cat playing on the beach" };
-      return {
-        text: `Generating video: "${prompt}"...`,
-        toolCall: { name: "generate_video", params: { prompt } },
-      };
+      try {
+        const rawInput = {
+          prompt,
+          negativeprompt: "",
+          images: 1,
+          steps: 25,
+          cfgscale: 7,
+          width: 512,
+          height: 512,
+          seed: -1,
+          videoframes: 24,
+          videofps: 8,
+          videoformat: "mp4",
+        };
+        const result = await swarmPost("GenerateText2Image", { images: 1, rawInput }, 180_000);
+        if (result.error) return { text: `Video generation failed: ${result.error}` };
+        const videoPaths: string[] = result.images ?? [];
+        if (videoPaths.length === 0) return { text: "No video generated. Check /gpustatus for backend health." };
+        const localPaths: string[] = [];
+        for (const vidPath of videoPaths) {
+          try {
+            localPaths.push(await downloadImage(vidPath));
+          } catch (err: any) {
+            log.error(`[rdy-swarmui] /video download failed: ${err.message}`);
+          }
+        }
+        return { text: `Generated video for "${prompt}"`, files: localPaths };
+      } catch (err: any) {
+        return { text: `Error: ${err.message}` };
+      }
     },
   });
 
@@ -725,10 +774,20 @@ export default function (api: any) {
     name: "gpustatus",
     description: "Check GPU status and generation queue",
     async handler() {
-      return {
-        text: "Checking GPU status...",
-        toolCall: { name: "gpu_status", params: {} },
-      };
+      try {
+        const result = await swarmPost("GetCurrentStatus", {});
+        if (result.error) return { text: `Error: ${result.error}` };
+        const s = result.status ?? {};
+        const b = result.backend_status ?? {};
+        const lines = [
+          `GPU Status:`,
+          `  Backend: ${b.status ?? "unknown"} ${b.message ? "— " + b.message : ""}`,
+          `  Queue: ${s.waiting_gens ?? 0} waiting, ${s.live_gens ?? 0} active, ${s.loading_models ?? 0} loading`,
+        ];
+        return { text: lines.join("\n") };
+      } catch (err: any) {
+        return { text: `Error checking GPU status: ${err.message}` };
+      }
     },
   });
 
@@ -736,10 +795,15 @@ export default function (api: any) {
     name: "gpumodels",
     description: "List available GPU models for image/video generation",
     async handler() {
-      return {
-        text: "Listing available models...",
-        toolCall: { name: "list_gpu_models", params: {} },
-      };
+      try {
+        const result = await swarmPost("ListT2IParams", {});
+        if (result.error) return { text: `Error: ${result.error}` };
+        const models = result.models?.["Stable-Diffusion"] ?? [];
+        if (models.length === 0) return { text: "No models currently available. Backends may be offline." };
+        return { text: `Available models (${models.length}):\n${models.map((m: string) => `  • ${m}`).join("\n")}` };
+      } catch (err: any) {
+        return { text: `Error listing models: ${err.message}` };
+      }
     },
   });
 
