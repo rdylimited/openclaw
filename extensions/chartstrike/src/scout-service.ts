@@ -41,11 +41,12 @@ function evictStaleSignals(): void {
 type PitReport = {
   id?: string;
   ticker?: string;
-  strength?: number;
-  direction?: string;
-  summary?: string;
-  premium?: string;
-  strike?: string;
+  signal_strength?: number;
+  signal_type?: string;
+  source?: string;
+  raw_data?: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+  created_at?: string;
 };
 
 async function sendWhatsApp(to: string, text: string): Promise<void> {
@@ -90,23 +91,30 @@ async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promis
 
   let reports: PitReport[];
   try {
-    const data = await pitFetch<{ data?: PitReport[] }>("/reports?limit=20");
-    reports = data?.data ?? [];
+    const data = await pitFetch<PitReport[] | { data?: PitReport[] }>("/reports?limit=20");
+    reports = Array.isArray(data) ? data : (data?.data ?? []);
   } catch (err) {
     logger.warn(`Scout poll failed: ${err}`);
     return;
   }
 
+  const maxStrength =
+    reports.length > 0 ? Math.max(...reports.map((r) => Math.abs(r.signal_strength ?? 0))) : 0;
+  logger.info(
+    `Scout poll: ${reports.length} reports, max strength=${maxStrength.toFixed(2)}, threshold=${config.alertThreshold}`,
+  );
+
   for (const report of reports) {
-    const signalId = report.id ?? `${report.ticker}-${report.strength}-${report.direction}`;
+    const signalId =
+      report.id ?? `${report.ticker}-${report.signal_strength}-${report.signal_type}`;
     if (seenSignals.has(signalId)) continue;
 
-    const strength = Math.abs(report.strength ?? 0);
+    const strength = Math.abs(report.signal_strength ?? 0);
     if (strength < config.alertThreshold) continue;
 
     seenSignals.set(signalId, Date.now());
     const ticker = report.ticker ?? "???";
-    const dir = (report.strength ?? 0) >= 0 ? "bullish" : "bearish";
+    const dir = (report.signal_strength ?? 0) >= 0 ? "bullish" : "bearish";
 
     // Run scout analysis
     let scoutTake = "";
@@ -117,12 +125,19 @@ async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promis
       scoutTake = "Scout: analysis unavailable";
     }
 
-    // Build alert message
+    // Build alert message from raw_data
+    const rd = report.raw_data ?? {};
+    const premium = rd.total_premium ? `$${Number(rd.total_premium).toLocaleString()}` : "";
+    const strike = rd.strike ? `$${rd.strike}` : "";
+    const optType = rd.type ? String(rd.type).toUpperCase() : "";
+    const expiry = rd.expiry ? String(rd.expiry) : "";
     const alertMsg =
       `*${ticker} Alert* (${strength.toFixed(2)} ${dir}): ` +
-      `${report.summary ?? "Strong signal detected"}` +
-      (report.premium ? ` | Premium: ${report.premium}` : "") +
-      (report.strike ? ` | Strike: ${report.strike}` : "") +
+      `${report.signal_type ?? "signal"}` +
+      (optType ? ` ${optType}` : "") +
+      (strike ? ` @ ${strike}` : "") +
+      (expiry ? ` exp ${expiry}` : "") +
+      (premium ? ` | Premium: ${premium}` : "") +
       `\n${scoutTake}` +
       `\nReply */debate ${ticker}* for full analysis.`;
 
