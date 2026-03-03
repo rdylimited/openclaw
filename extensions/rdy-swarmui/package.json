@@ -1,5 +1,5 @@
 {
-  "name": "@openclaw/rdy-swarm",
+  "name": "@openclaw/rdy-swarmui",
   "version": "1.0.0",
   "private": true,
   "description": "SwarmUI image/video generation plugin for OpenClaw",

@@ -216,7 +216,7 @@ export default function (api: any) {
     error: console.error,
   };
 
-  log.info("[rdy-swarm] initializing SwarmUI plugin");
+  log.info("[rdy-swarmui] initializing SwarmUI plugin");
 
   // ============================================================
   //  TOOL: generate_image
@@ -300,7 +300,7 @@ export default function (api: any) {
         if (params.model) rawInput.model = params.model;
 
         log.info(
-          `[rdy-swarm] generate_image: prompt="${params.prompt}", count=${count}`,
+          `[rdy-swarmui] generate_image: prompt="${params.prompt}", count=${count}`,
         );
 
         const result = await swarmPost("GenerateText2Image", {
@@ -323,9 +323,9 @@ export default function (api: any) {
           try {
             const localPath = await downloadImage(imgPath);
             localPaths.push(localPath);
-            log.info(`[rdy-swarm] downloaded: ${imgPath} → ${localPath}`);
+            log.info(`[rdy-swarmui] downloaded: ${imgPath} → ${localPath}`);
           } catch (err: any) {
-            log.error(`[rdy-swarm] download failed for ${imgPath}: ${err.message}`);
+            log.error(`[rdy-swarmui] download failed for ${imgPath}: ${err.message}`);
           }
         }
 
@@ -337,7 +337,7 @@ export default function (api: any) {
           message: `Generated ${localPaths.length} image(s). Send the image files to the user.`,
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] generate_image error: ${err.message}`);
+        log.error(`[rdy-swarmui] generate_image error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -409,7 +409,7 @@ export default function (api: any) {
         };
         if (params.model) rawInput.model = params.model;
 
-        log.info(`[rdy-swarm] generate_video: prompt="${params.prompt}"`);
+        log.info(`[rdy-swarmui] generate_video: prompt="${params.prompt}"`);
 
         const result = await swarmPost("GenerateText2Image", {
           images: 1,
@@ -430,9 +430,9 @@ export default function (api: any) {
           try {
             const localPath = await downloadImage(vidPath);
             localPaths.push(localPath);
-            log.info(`[rdy-swarm] downloaded video: ${vidPath} → ${localPath}`);
+            log.info(`[rdy-swarmui] downloaded video: ${vidPath} → ${localPath}`);
           } catch (err: any) {
-            log.error(`[rdy-swarm] download failed for ${vidPath}: ${err.message}`);
+            log.error(`[rdy-swarmui] download failed for ${vidPath}: ${err.message}`);
           }
         }
 
@@ -443,7 +443,7 @@ export default function (api: any) {
           message: `Generated video. Send the video file to the user.`,
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] generate_video error: ${err.message}`);
+        log.error(`[rdy-swarmui] generate_video error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -495,7 +495,7 @@ export default function (api: any) {
           count: models.length,
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] list_gpu_models error: ${err.message}`);
+        log.error(`[rdy-swarmui] list_gpu_models error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -527,7 +527,7 @@ export default function (api: any) {
           message: "SwarmUI GPU status retrieved.",
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] gpu_status error: ${err.message}`);
+        log.error(`[rdy-swarmui] gpu_status error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -565,7 +565,7 @@ export default function (api: any) {
           count: (result.workflows ?? []).length,
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] list_workflows error: ${err.message}`);
+        log.error(`[rdy-swarmui] list_workflows error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -655,7 +655,7 @@ export default function (api: any) {
         const workflow = JSON.parse(workflowJson);
 
         log.info(
-          `[rdy-swarm] run_workflow: "${params.workflow_name}", prompt="${params.prompt}"`,
+          `[rdy-swarmui] run_workflow: "${params.workflow_name}", prompt="${params.prompt}"`,
         );
 
         // Submit via ComfyUI direct API
@@ -685,7 +685,7 @@ export default function (api: any) {
           message: `Workflow "${params.workflow_name}" submitted. The generation is in progress.`,
         });
       } catch (err: any) {
-        log.error(`[rdy-swarm] run_workflow error: ${err.message}`);
+        log.error(`[rdy-swarmui] run_workflow error: ${err.message}`);
         return text({ error: err.message });
       }
     },
@@ -765,6 +765,6 @@ export default function (api: any) {
   );
 
   log.info(
-    "[rdy-swarm] registered tools (generate_image, generate_video, list_gpu_models, gpu_status, list_workflows, run_workflow), commands (/imagine, /video, /gpustatus, /models)",
+    "[rdy-swarmui] registered tools (generate_image, generate_video, list_gpu_models, gpu_status, list_workflows, run_workflow), commands (/imagine, /video, /gpustatus, /models)",
   );
 }

@@ -1,5 +1,5 @@
 {
-  "id": "rdy-swarm",
+  "id": "rdy-swarmui",
   "name": "RDY SwarmUI Controller",
   "version": "1.0.0",
   "description": "Generate images and videos via SwarmUI GPUs. Provides tools for text-to-image, video generation, model listing, and GPU status monitoring.",
