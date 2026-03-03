@@ -70,6 +70,7 @@ export function registerTools(api: OpenClawPluginApi): void {
   // ============================================================
 
   api.registerTool({
+    label: "",
     name: "record_signal",
     description:
       "Record a trading signal/prediction for tracking. Call this whenever you identify a whale swing or notable market signal.",
@@ -137,6 +138,7 @@ export function registerTools(api: OpenClawPluginApi): void {
   });
 
   api.registerTool({
+    label: "",
     name: "review_signals",
     description:
       "Review pending signals against current market prices. Checks if past predictions were correct.",
@@ -235,6 +237,7 @@ export function registerTools(api: OpenClawPluginApi): void {
   });
 
   api.registerTool({
+    label: "",
     name: "signal_scorecard",
     description:
       "Get overall signal accuracy scorecard — lifetime stats on prediction accuracy, best/worst tickers, streaks.",
@@ -367,6 +370,7 @@ export function registerTools(api: OpenClawPluginApi): void {
 
   for (const t of marketTools) {
     api.registerTool({
+      label: "",
       name: t.name,
       description: t.description,
       parameters: { type: "object", properties: {}, required: [] },
@@ -428,6 +432,7 @@ export function registerTools(api: OpenClawPluginApi): void {
 
   for (const t of tickerTools) {
     api.registerTool({
+      label: "",
       name: t.name,
       description: t.description,
       parameters: {

@@ -66,6 +66,7 @@ const plugin = {
 
     // --- scout_analysis tool ---
     api.registerTool({
+      label: "",
       name: "scout_analysis",
       description:
         "Get a quick scout analysis on any ticker using qwen3-4b-scout. " +
@@ -120,7 +121,7 @@ const plugin = {
         const ticker = ctx.args?.trim().toUpperCase();
         if (!ticker) {
           return {
-            content: [{ type: "text", text: "Usage: /debate <TICKER>\nExample: /debate TSLA" }],
+            text: "Usage: /debate <TICKER>\nExample: /debate TSLA",
           };
         }
 
@@ -134,17 +135,17 @@ const plugin = {
           if (!res.ok) {
             const body = await res.text().catch(() => "");
             return {
-              content: [{ type: "text", text: `Boardroom error ${res.status}: ${body}` }],
+              text: `Boardroom error ${res.status}: ${body}`,
             };
           }
 
           const data = (await res.json()) as Record<string, unknown>;
           return {
-            content: [{ type: "text", text: formatDebateForWhatsApp(data) }],
+            text: formatDebateForWhatsApp(data),
           };
         } catch (err) {
           return {
-            content: [{ type: "text", text: `Debate failed: ${err}` }],
+            text: `Debate failed: ${err}`,
           };
         }
       },
