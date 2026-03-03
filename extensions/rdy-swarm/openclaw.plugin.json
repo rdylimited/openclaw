@@ -1,0 +1,23 @@
+{
+  "id": "rdy-swarm",
+  "name": "RDY SwarmUI Controller",
+  "version": "1.0.0",
+  "description": "Generate images and videos via SwarmUI GPUs. Provides tools for text-to-image, video generation, model listing, and GPU status monitoring.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "swarmUrl": {
+        "type": "string",
+        "default": "http://100.111.98.26:7801"
+      },
+      "authKey": {
+        "type": "string",
+        "default": "swarm-rdy-api-2026"
+      },
+      "pgConnectionString": {
+        "type": "string",
+        "default": "postgresql://postgres:8b309fab0813a258592d0f849c5e8a3f0498ccc4427d88f5@100.120.14.56:5433/rdycore"
+      }
+    }
+  }
+}
