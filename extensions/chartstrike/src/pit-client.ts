@@ -7,7 +7,17 @@ export function configurePit(url: string): void {
 }
 
 export async function pitFetch<T = unknown>(path: string): Promise<T> {
-  const res = await fetch(`${pitBaseUrl}${path}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+  let res: Response;
+  try {
+    res = await fetch(`${pitBaseUrl}${path}`, { signal: controller.signal });
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err?.name === "AbortError") throw new Error(`Pit API timeout (30s) ${path}`);
+    throw err;
+  }
+  clearTimeout(timeout);
   if (!res.ok) {
     const body = await res.text().catch(() => "(no body)");
     throw new Error(`Pit API ${res.status} ${path}: ${body}`);
@@ -23,11 +33,22 @@ export function textResult(data: unknown) {
 }
 
 export async function pitPost<T = unknown>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${pitBaseUrl}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
+  let res: Response;
+  try {
+    res = await fetch(`${pitBaseUrl}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err?.name === "AbortError") throw new Error(`Pit API timeout (15s) POST ${path}`);
+    throw err;
+  }
+  clearTimeout(timeout);
   if (!res.ok) {
     const text = await res.text().catch(() => "(no body)");
     throw new Error(`Pit API ${res.status} POST ${path}: ${text}`);
