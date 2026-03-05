@@ -1,7 +1,7 @@
-/** HTTP client for qwen3-4b-scout vLLM instance. */
+/** HTTP client for rdyfinance-pro vLLM instance. */
 
-let scoutBaseUrl = "http://100.115.36.67:8082";
-let scoutModel = "qwen3-4b-scout";
+let scoutBaseUrl = "http://100.115.36.67:8000";
+let scoutModel = "rdyfinance-pro";
 
 export function configureScout(url: string, model: string): void {
   scoutBaseUrl = url;
@@ -35,6 +35,7 @@ export async function scoutAnalyze(ticker: string, context: string): Promise<Sco
       max_tokens: 256,
       temperature: 0.3,
       stream: false,
+      chat_template_kwargs: { enable_thinking: false },
     }),
   });
 

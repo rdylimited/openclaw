@@ -5,7 +5,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
-import { pitFetch, textResult } from "./pit-client.js";
+import { pitFetch, pitPost, textResult } from "./pit-client.js";
 
 const SIGNALS_FILE = path.join(
   process.env.HOME || "/home/samau",
@@ -449,4 +449,81 @@ export function registerTools(api: OpenClawPluginApi): void {
       },
     });
   }
+
+  // ============================================================
+  //  WATCHLIST MANAGEMENT TOOLS
+  // ============================================================
+
+  api.registerTool({
+    label: "",
+    name: "list_watchlists",
+    description:
+      "List current high-priority tickers (30s poll) and watchlist tickers (5min poll) being monitored for signals.",
+    parameters: { type: "object", properties: {}, required: [] },
+    async execute() {
+      return textResult(await pitFetch("/config/watchlist"));
+    },
+  });
+
+  api.registerTool({
+    label: "",
+    name: "add_to_watchlist",
+    description:
+      "Add one or more tickers to the watchlist (5min poll) or high-priority list (30s poll). Requires owner authorization.",
+    parameters: {
+      type: "object",
+      properties: {
+        tickers: {
+          type: "string",
+          description: "Comma-separated ticker symbols to add, e.g. AAPL,TSLA,NVDA",
+        },
+        list_name: {
+          type: "string",
+          enum: ["watchlist", "high_priority"],
+          description: "Which list to add to (default: watchlist)",
+        },
+      },
+      required: ["tickers"],
+    },
+    async execute(_id: string, p: Record<string, unknown>) {
+      const tickers = (p.tickers as string)
+        .split(",")
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean);
+      const listName = (p.list_name as string) || "watchlist";
+      return textResult(await pitPost("/config/watchlist", { list_name: listName, add: tickers }));
+    },
+  });
+
+  api.registerTool({
+    label: "",
+    name: "remove_from_watchlist",
+    description:
+      "Remove one or more tickers from the watchlist or high-priority list. Requires owner authorization.",
+    parameters: {
+      type: "object",
+      properties: {
+        tickers: {
+          type: "string",
+          description: "Comma-separated ticker symbols to remove, e.g. AAPL,TSLA",
+        },
+        list_name: {
+          type: "string",
+          enum: ["watchlist", "high_priority"],
+          description: "Which list to remove from (default: watchlist)",
+        },
+      },
+      required: ["tickers"],
+    },
+    async execute(_id: string, p: Record<string, unknown>) {
+      const tickers = (p.tickers as string)
+        .split(",")
+        .map((t) => t.trim().toUpperCase())
+        .filter(Boolean);
+      const listName = (p.list_name as string) || "watchlist";
+      return textResult(
+        await pitPost("/config/watchlist", { list_name: listName, remove: tickers }),
+      );
+    },
+  });
 }
