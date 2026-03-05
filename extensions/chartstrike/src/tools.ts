@@ -458,7 +458,7 @@ export function registerTools(api: OpenClawPluginApi): void {
     label: "",
     name: "daily_summary",
     description:
-      "Get aggregated daily signal summary — signal counts by type and ticker, strongest signals, bull/bear ratio, and tickers with confluent (multi-type) signals. Accepts optional date parameter (YYYY-MM-DD), defaults to today.",
+      "Get aggregated daily signal summary with time-series data. Returns: signal counts by type/ticker, strongest signals, bull/bear ratio, confluent tickers, PLUS hourly_flow (hour-by-hour breakdown), daily_accumulation (rolling N-day totals), and monthly_accumulation (N-month totals). Use this to narrate flow evolution over time, not just flat aggregates.",
     parameters: {
       type: "object",
       properties: {
@@ -466,12 +466,30 @@ export function registerTools(api: OpenClawPluginApi): void {
           type: "string",
           description: "Date in YYYY-MM-DD format (default: today UTC)",
         },
+        include_timeseries: {
+          type: "boolean",
+          description: "Include hourly, daily, monthly time-series (default: true)",
+        },
+        lookback_days: {
+          type: "number",
+          description: "Days of daily accumulation history (1-90, default: 7)",
+        },
+        lookback_months: {
+          type: "number",
+          description: "Months of monthly accumulation history (1-12, default: 3)",
+        },
       },
       required: [],
     },
     async execute(_id: string, p: Record<string, unknown>) {
-      const dateParam = p.date ? `?date=${p.date}` : "";
-      return textResult(await pitFetch(`/reports/daily-summary${dateParam}`));
+      const params = new URLSearchParams();
+      if (p.date) params.set("date", String(p.date));
+      if (p.include_timeseries !== undefined)
+        params.set("include_timeseries", String(p.include_timeseries));
+      if (p.lookback_days) params.set("lookback_days", String(p.lookback_days));
+      if (p.lookback_months) params.set("lookback_months", String(p.lookback_months));
+      const qs = params.toString() ? `?${params.toString()}` : "";
+      return textResult(await pitFetch(`/reports/daily-summary${qs}`));
     },
   });
 
