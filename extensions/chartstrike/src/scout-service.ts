@@ -30,25 +30,40 @@ export function configureScoutService(partial: Partial<ScoutConfig>): void {
 // Polling lock to prevent concurrent poll cycles
 let polling = false;
 
-// Dedup: signal ID -> timestamp. Evict after 1 hour.
-const seenSignals = new Map<string, number>();
-// Alerted tickers — only alert each ticker once per TTL (consolidate multiple signals)
-const alertedTickers = new Map<string, number>();
+// Dedup: report ID -> timestamp (prevent processing same DB row twice)
+const seenReports = new Map<string, number>();
+// Alerted tickers — track last alert state to detect significant changes
+type AlertState = { ts: number; strength: number; direction: "bullish" | "bearish" };
+const alertedTickers = new Map<string, AlertState>();
 // Debated tickers — only auto-debate each ticker once per TTL
 const debatedTickers = new Map<string, number>();
-const SEEN_TTL_MS = 60 * 60 * 1000;
+const SEEN_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours — covers a full session
+const SIGNIFICANT_DELTA = 0.15; // re-alert if strength changes by this much
 
 function evictStale(): void {
   const cutoff = Date.now() - SEEN_TTL_MS;
-  for (const [id, ts] of seenSignals) {
-    if (ts < cutoff) seenSignals.delete(id);
+  for (const [id, ts] of seenReports) {
+    if (ts < cutoff) seenReports.delete(id);
   }
-  for (const [t, ts] of alertedTickers) {
-    if (ts < cutoff) alertedTickers.delete(t);
+  for (const [t, state] of alertedTickers) {
+    if (state.ts < cutoff) alertedTickers.delete(t);
   }
   for (const [t, ts] of debatedTickers) {
     if (ts < cutoff) debatedTickers.delete(t);
   }
+}
+
+/** Check if a new signal is significantly different from the last alert */
+function isSignificantChange(
+  ticker: string,
+  newStrength: number,
+  newDir: "bullish" | "bearish",
+): boolean {
+  const prev = alertedTickers.get(ticker);
+  if (!prev) return true; // never alerted
+  if (prev.direction !== newDir) return true; // direction flipped
+  if (Math.abs(newStrength - prev.strength) >= SIGNIFICANT_DELTA) return true;
+  return false;
 }
 
 type PitReport = {
@@ -155,10 +170,9 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
   // Find the strongest signal per ticker (consolidate)
   const bestByTicker = new Map<string, { report: PitReport; strength: number }>();
   for (const report of reports) {
-    const signalId =
-      report.id ?? `${report.ticker}-${report.signal_strength}-${report.signal_type}`;
-    if (seenSignals.has(signalId)) continue;
-    seenSignals.set(signalId, Date.now());
+    const reportId = report.id ?? `${report.ticker}-${report.created_at}`;
+    if (seenReports.has(reportId)) continue;
+    seenReports.set(reportId, Date.now());
 
     const strength = Math.abs(report.signal_strength ?? 0);
     if (strength < config.alertThreshold) continue;
@@ -177,11 +191,11 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
 
   // Process one alert per ticker (the strongest signal)
   for (const [ticker, { report, strength }] of bestByTicker) {
-    // Skip if we already alerted this ticker recently
-    if (alertedTickers.has(ticker)) continue;
-    alertedTickers.set(ticker, Date.now());
-
     const dir = (report.signal_strength ?? 0) >= 0 ? "bullish" : "bearish";
+
+    // Skip unless this is a significant change from the last alert
+    if (!isSignificantChange(ticker, strength, dir)) continue;
+    alertedTickers.set(ticker, { ts: Date.now(), strength, direction: dir });
 
     // Run scout analysis
     let scoutTake = "";

@@ -451,6 +451,31 @@ export function registerTools(api: OpenClawPluginApi): void {
   }
 
   // ============================================================
+  //  DAILY SUMMARY (aggregated from Pit DB)
+  // ============================================================
+
+  api.registerTool({
+    label: "",
+    name: "daily_summary",
+    description:
+      "Get aggregated daily signal summary — signal counts by type and ticker, strongest signals, bull/bear ratio, and tickers with confluent (multi-type) signals. Accepts optional date parameter (YYYY-MM-DD), defaults to today.",
+    parameters: {
+      type: "object",
+      properties: {
+        date: {
+          type: "string",
+          description: "Date in YYYY-MM-DD format (default: today UTC)",
+        },
+      },
+      required: [],
+    },
+    async execute(_id: string, p: Record<string, unknown>) {
+      const dateParam = p.date ? `?date=${p.date}` : "";
+      return textResult(await pitFetch(`/reports/daily-summary${dateParam}`));
+    },
+  });
+
+  // ============================================================
   //  WATCHLIST MANAGEMENT TOOLS
   // ============================================================
 
