@@ -1,0 +1,15 @@
+{
+  "id": "rdy-tenant",
+  "name": "RdyCore Tenant Resolver",
+  "version": "2.0.0",
+  "description": "Multi-channel tenant resolver with fair-use rate limiting. Resolves WhatsApp, WeCom, and WeCom KF identities to tenants, injects workspace context, and enforces monthly message caps.",
+  "configSchema": {
+    "type": "object",
+    "properties": {
+      "pgConnectionString": {
+        "type": "string",
+        "default": "postgresql://postgres:8b309fab0813a258592d0f849c5e8a3f0498ccc4427d88f5@100.120.14.56:5432/rdycore"
+      }
+    }
+  }
+}
