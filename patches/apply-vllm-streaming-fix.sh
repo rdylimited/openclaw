@@ -1,41 +1,32 @@
-#!/usr/bin/env python3
-"""
-Patch: vLLM streaming tool call fix
+#!/usr/bin/env bash
+# Patch: vLLM streaming tool call fix
+# vLLM's qwen3_xml parser fails in streaming mode, outputting <tool_call> XML
+# as text instead of structured tool_calls. This interceptor detects XML tool
+# calls in text blocks post-stream and converts them to proper toolCall blocks.
 
-vLLM's qwen3_xml parser fails in streaming mode, outputting <tool_call> XML
-as text instead of structured tool_calls. This interceptor detects XML tool
-calls in text blocks post-stream and converts them to proper toolCall blocks.
+TARGET="node_modules/@mariozechner/pi-ai/dist/providers/openai-completions.js"
 
-Run after pnpm install to patch node_modules.
-"""
-import pathlib
-import sys
+if [ ! -f "$TARGET" ]; then
+  echo "[patch] Target not found: $TARGET"
+  exit 0
+fi
 
-TARGET = "node_modules/@mariozechner/pi-ai/dist/providers/openai-completions.js"
-MARKER = "vllm-stream-fix"
+if grep -q 'vllm-stream-fix' "$TARGET"; then
+  echo "[patch] vLLM streaming fix already applied"
+  exit 0
+fi
 
-f = pathlib.Path(TARGET)
-if not f.exists():
-    print(f"[patch] Target not found: {TARGET}")
-    sys.exit(0)
+python3 - << 'PYEOF'
+import pathlib, sys
 
+f = pathlib.Path("node_modules/@mariozechner/pi-ai/dist/providers/openai-completions.js")
 content = f.read_text()
 
-if MARKER in content:
-    print("[patch] vLLM streaming fix already applied")
-    sys.exit(0)
-
-# Also remove any leftover TOOL-DEBUG lines
-content = content.replace(
-    'if (context.tools) { console.error("[TOOL-DEBUG] context.tools count=" + (context.tools?.length ?? 0) + " names=" + (context.tools?.map(t=>t.name).join(",") ?? "none")); console.error("[TOOL-DEBUG] context.tools count=" + (context.tools?.length ?? 0) + " names=" + (context.tools?.map(t=>t.name).join(",") ?? "none"));\n        params.tools = convertTools(context.tools, compat);',
-    'if (context.tools) {\n        params.tools = convertTools(context.tools, compat);'
-)
-
-INTERCEPTOR = r'''
+interceptor = """
             // [LOCAL PATCH] vLLM streaming tool call fix: qwen3_xml parser fails in
             // streaming mode, outputting <tool_call> XML as text instead of structured
             // tool_calls. Detect and convert them post-stream.
-            const toolCallXmlRegex = /<tool_call>\s*<function=([^>]+)>\s*([\s\S]*?)<\/function>\s*<\/tool_call>/g;
+            const toolCallXmlRegex = /<tool_call>\\s*<function=([^>]+)>\\s*([\\s\\S]*?)<\\/function>\\s*<\\/tool_call>/g;
             const newContent = [];
             let toolCallCounter = 0;
             for (const block of output.content) {
@@ -51,7 +42,7 @@ INTERCEPTOR = r'''
                         const fnName = match[1].trim();
                         const paramsBlock = match[2].trim();
                         const args = {};
-                        const paramRegex = /<parameter=([^>]+)>([\s\S]*?)<\/parameter>/g;
+                        const paramRegex = /<parameter=([^>]+)>([\\s\\S]*?)<\\/parameter>/g;
                         let pm;
                         while ((pm = paramRegex.exec(paramsBlock)) !== null) {
                             args[pm[1].trim()] = pm[2].trim();
@@ -59,7 +50,7 @@ INTERCEPTOR = r'''
                         toolCallCounter++;
                         const toolCallBlock = {
                             type: "toolCall",
-                            id: `vllm-stream-fix-${Date.now()}-${toolCallCounter}`,
+                            id: \,
                             name: fnName,
                             arguments: args,
                         };
@@ -88,11 +79,12 @@ INTERCEPTOR = r'''
             if (toolCallCounter > 0) {
                 output.content = newContent;
                 output.stopReason = "tool_calls";
+                console.error(\);
             }
-'''
+"""
 
 target = '            finishCurrentBlock(currentBlock);\n            if (options?.signal?.aborted) {'
-replacement = '            finishCurrentBlock(currentBlock);\n' + INTERCEPTOR + '\n            if (options?.signal?.aborted) {'
+replacement = '            finishCurrentBlock(currentBlock);\n' + interceptor + '\n            if (options?.signal?.aborted) {'
 
 if target in content:
     content = content.replace(target, replacement, 1)
@@ -101,21 +93,6 @@ if target in content:
 else:
     print("[patch] ERROR: injection point not found - SDK may have changed", file=sys.stderr)
     sys.exit(1)
+PYEOF
 
-# ── Patch 2: fix R Racing / G Golf model name prefixes in WhatsApp delivery ──
-import glob as _glob
-
-web_files = _glob.glob(str(Path(__file__).parent.parent / 'dist' / 'channel-web-*.js'))
-patched = False
-for wf in web_files:
-    wpath = Path(wf)
-    wcontent = wpath.read_text()
-    old = 'stripToolCallXml(replyResult.text || "")'
-    new = 'stripToolCallXml((replyResult.text || "").replace(/\\bR\\s+Racing\\b/g, "Racing").replace(/\\bG\\s+Golf\\b/g, "Golf"))'
-    if old in wcontent:
-        wpath.write_text(wcontent.replace(old, new, 1))
-        print(f'[patch] business name fix applied to {wpath.name}')
-        patched = True
-        break
-if not patched:
-    print('[patch] WARNING: business name fix injection point not found in channel-web-*.js')
+echo "[patch] Done"

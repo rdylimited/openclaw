@@ -7,6 +7,34 @@ import type { OpenClawPluginService, OpenClawPluginServiceContext } from "opencl
 import { pitFetch } from "./pit-client.js";
 import { scoutAnalyze } from "./scout-client.js";
 
+/**
+ * Market hours check — only alert during US market hours (8:30 AM – 4:30 PM ET).
+ * Extended 30 min past close to catch post-close flow reactions.
+ */
+function isMarketHours(): boolean {
+  const now = new Date();
+  const day = now.getUTCDay();
+  if (day === 0 || day === 6) return false; // Weekend
+
+  // Determine ET offset (EST=-5, EDT=-4)
+  const year = now.getUTCFullYear();
+  const mar1 = new Date(Date.UTC(year, 2, 1));
+  const dstStart = new Date(mar1.getTime() + (((14 - mar1.getUTCDay()) % 7) + 7) * 86400000);
+  dstStart.setUTCHours(7); // 2 AM EST = 7 AM UTC
+  const nov1 = new Date(Date.UTC(year, 10, 1));
+  const dstEnd = new Date(nov1.getTime() + ((7 - nov1.getUTCDay()) % 7) * 86400000);
+  dstEnd.setUTCHours(6); // 2 AM EDT = 6 AM UTC
+  const isDST = now >= dstStart && now < dstEnd;
+  const etOffset = isDST ? -4 : -5;
+
+  const etHour = (now.getUTCHours() + 24 + etOffset) % 24;
+  const etMin = now.getUTCMinutes();
+  const etTime = etHour * 60 + etMin;
+
+  // 8:30 AM = 510 min, 4:30 PM = 990 min
+  return etTime >= 510 && etTime <= 990;
+}
+
 type ScoutConfig = {
   boardroomUrl: string;
   alertThreshold: number;
@@ -143,7 +171,8 @@ function formatDebateResult(data: Record<string, unknown>): string {
   return msg;
 }
 
-async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
+/** Run a single poll cycle — exported for on-demand use via /chartstrike command. */
+export async function pollCycle(logger: OpenClawPluginServiceContext["logger"]): Promise<void> {
   if (polling) {
     return;
   }
@@ -160,7 +189,11 @@ async function pollCycleInner(logger: OpenClawPluginServiceContext["logger"]): P
 
   let reports: PitReport[];
   try {
-    const data = await pitFetch<PitReport[] | { data?: PitReport[] }>("/reports?limit=20");
+    // Only fetch reports from the last 10 minutes to avoid stale signal alerts
+    const since = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const data = await pitFetch<PitReport[] | { data?: PitReport[] }>(
+      `/reports?limit=20&since=${encodeURIComponent(since)}`,
+    );
     reports = Array.isArray(data) ? data : (data?.data ?? []);
   } catch (err) {
     logger.warn(`Scout poll failed: ${err}`);
@@ -244,18 +277,20 @@ export const scoutService: OpenClawPluginService = {
 
   start: (ctx) => {
     ctx.logger.info(
-      `Scout service started (poll=${config.pollIntervalMs}ms, ` +
-        `alert>=${config.alertThreshold}, auto-debate>=${config.autoDebateThreshold})`,
+      `Scout service ready (on-demand only, no auto-polling). ` +
+        `Use /chartstrike to get a market briefing.`,
     );
 
-    // Initial poll after 15s delay (let WhatsApp session stabilize)
-    setTimeout(() => {
-      pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
-    }, 15_000);
-
-    pollTimer = setInterval(() => {
-      pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
-    }, config.pollIntervalMs);
+    // NO auto-polling — alerts are on-demand only via /chartstrike command.
+    // The background poll timer is disabled to avoid spamming WhatsApp.
+    // To re-enable auto-polling, uncomment below:
+    //
+    // setTimeout(() => {
+    //   pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
+    // }, 15_000);
+    // pollTimer = setInterval(() => {
+    //   pollCycle(ctx.logger).catch((err) => ctx.logger.error(`Scout poll error: ${err}`));
+    // }, config.pollIntervalMs);
   },
 
   stop: (ctx) => {
